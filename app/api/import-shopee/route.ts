@@ -82,9 +82,60 @@ export async function POST(request: Request) {
 
     let imageUrl = $('meta[property="og:image"]').attr("content") || "";
 
+    // Try multiple methods to extract price from Shopee
+    let price: number | null = null;
+
+    // Method 1: Try og:price meta tag
     let priceText =
       $('meta[property="product:price:amount"]').attr("content") || "";
-    let price = priceText ? parseFloat(priceText) : null;
+    if (priceText) {
+      price = parseFloat(priceText);
+    }
+
+    // Method 2: Try to find price in JSON-LD structured data
+    if (!price) {
+      try {
+        const jsonLdScripts = $('script[type="application/ld+json"]');
+        jsonLdScripts.each((_, elem) => {
+          try {
+            const jsonData = JSON.parse($(elem).html() || "");
+            if (
+              jsonData.offers &&
+              jsonData.offers[0] &&
+              jsonData.offers[0].price
+            ) {
+              price = parseFloat(jsonData.offers[0].price);
+            }
+          } catch (e) {
+            // Ignore parse errors
+          }
+        });
+      } catch (e) {
+        // Ignore errors
+      }
+    }
+
+    // Method 3: Try to find price in common Shopee patterns
+    if (!price) {
+      // Look for price patterns in the HTML
+      const pricePatterns = [
+        /preço[\s:]*R\$\s*([\d.,]+)/gi,
+        /price[\s:]*R\$\s*([\d.,]+)/gi,
+        /R\$\s*([\d.,]+)/,
+      ];
+
+      for (const pattern of pricePatterns) {
+        const match = html.match(pattern);
+        if (match) {
+          const priceStr = match[1].replace(/\./g, "").replace(",", ".");
+          const parsedPrice = parseFloat(priceStr);
+          if (!isNaN(parsedPrice) && parsedPrice > 0) {
+            price = parsedPrice;
+            break;
+          }
+        }
+      }
+    }
 
     // Clean up the name (remove Shopee suffix)
     name = name.replace(/\s*\|\s*Shopee.*$/i, "").trim();

@@ -135,42 +135,7 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {[
-              {
-                icon: Home,
-                title: 'Crie sua lista',
-                description: 'Adicione os itens que voce precisa para sua casa nova, de moveis a utensilios',
-                color: 'primary',
-                delay: 'stagger-1',
-              },
-              {
-                icon: Gift,
-                title: 'Importe produtos',
-                description: 'Importe itens diretamente da Amazon ou Havan com apenas um link',
-                color: 'accent',
-                delay: 'stagger-2',
-              },
-              {
-                icon: Users,
-                title: 'Compartilhe',
-                description: 'Gere um link e envie para amigos e familiares sem precisar de cadastro',
-                color: 'primary',
-                delay: 'stagger-3',
-              },
-            ].map((feature, index) => (
-              <div
-                key={index}
-                className={`group p-8 rounded-3xl bg-card border border-border/50 shadow-lg transition-all duration-500 hover:scale-105 hover:shadow-2xl hover:border-${feature.color}/30 animate-fade-in-up ${feature.delay}`}
-              >
-                <div className={`w-16 h-16 rounded-2xl bg-${feature.color}/10 flex items-center justify-center mb-6 group-hover:bg-${feature.color}/20 transition-all group-hover:scale-110 group-hover:rotate-3`}>
-                  <feature.icon className={`w-8 h-8 text-${feature.color}`} />
-                </div>
-                <h3 className="text-xl font-semibold mb-3">{feature.title}</h3>
-                <p className="text-muted-foreground leading-relaxed">{feature.description}</p>
-              </div>
-            ))}
-          </div>
+
         </div>
       </section>
 

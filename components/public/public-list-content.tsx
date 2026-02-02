@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { type GiftList, type GiftItem } from '@/app/dashboard/actions'
+import { isValidCPF, formatCPF } from '@/lib/cpf-validator'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -233,7 +234,12 @@ interface PublicItemCardProps {
 
 function PublicItemCard({ item, delay, onPurchaseChange }: PublicItemCardProps) {
   const [showPurchaseDialog, setShowPurchaseDialog] = useState(false)
+  const [showUnmarkDialog, setShowUnmarkDialog] = useState(false)
   const [purchaserName, setPurchaserName] = useState('')
+  const [purchaserCPF, setPurchaserCPF] = useState('')
+  const [unmarkCPF, setUnmarkCPF] = useState('')
+  const [cpfError, setCpfError] = useState('')
+  const [unmarkCpfError, setUnmarkCpfError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
 
@@ -247,6 +253,17 @@ function PublicItemCard({ item, delay, onPurchaseChange }: PublicItemCardProps) 
       return
     }
 
+    if (!purchaserCPF.trim()) {
+      setCpfError('CPF é obrigatório')
+      return
+    }
+
+    if (!isValidCPF(purchaserCPF)) {
+      setCpfError('CPF inválido. Por favor, verifique o número informado.')
+      return
+    }
+
+    setCpfError('')
     setIsLoading(true)
     try {
       const response = await fetch('/api/mark-purchased', {
@@ -255,11 +272,13 @@ function PublicItemCard({ item, delay, onPurchaseChange }: PublicItemCardProps) 
         body: JSON.stringify({
           itemId: item.id,
           purchasedByName: purchaserName.trim(),
+          purchasedByCPF: purchaserCPF.replace(/\D/g, ''),
         }),
       })
 
       if (!response.ok) {
-        throw new Error('Erro ao marcar como comprado')
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Erro ao marcar como comprado')
       }
 
       const { data } = await response.json()
@@ -272,10 +291,11 @@ function PublicItemCard({ item, delay, onPurchaseChange }: PublicItemCardProps) 
       onPurchaseChange?.(data)
       setShowPurchaseDialog(false)
       setPurchaserName('')
+      setPurchaserCPF('')
     } catch (error) {
       toast({
         title: 'Erro',
-        description: 'Não foi possível marcar o item como comprado',
+        description: error instanceof Error ? error.message : 'Não foi possível marcar o item como comprado',
         variant: 'destructive',
       })
     } finally {
@@ -284,16 +304,31 @@ function PublicItemCard({ item, delay, onPurchaseChange }: PublicItemCardProps) 
   }
 
   const handleUnmarkAsPurchased = async () => {
+    if (!unmarkCPF.trim()) {
+      setUnmarkCpfError('CPF é obrigatório para desmarcar')
+      return
+    }
+
+    if (!isValidCPF(unmarkCPF)) {
+      setUnmarkCpfError('CPF inválido. Por favor, verifique o número informado.')
+      return
+    }
+
+    setUnmarkCpfError('')
     setIsLoading(true)
     try {
       const response = await fetch('/api/mark-purchased', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itemId: item.id }),
+        body: JSON.stringify({ 
+          itemId: item.id,
+          cpf: unmarkCPF.replace(/\D/g, '')
+        }),
       })
 
       if (!response.ok) {
-        throw new Error('Erro ao desmarcar')
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Erro ao desmarcar')
       }
 
       const { data } = await response.json()
@@ -304,10 +339,12 @@ function PublicItemCard({ item, delay, onPurchaseChange }: PublicItemCardProps) 
       })
 
       onPurchaseChange?.(data)
+      setShowUnmarkDialog(false)
+      setUnmarkCPF('')
     } catch (error) {
       toast({
         title: 'Erro',
-        description: 'Não foi possível desmarcar o item',
+        description: error instanceof Error ? error.message : 'Não foi possível desmarcar o item',
         variant: 'destructive',
       })
     } finally {
@@ -378,7 +415,7 @@ function PublicItemCard({ item, delay, onPurchaseChange }: PublicItemCardProps) 
               Comprado por {item.purchased_by_name || 'alguém'}
             </div>
             <Button 
-              onClick={handleUnmarkAsPurchased}
+              onClick={() => setShowUnmarkDialog(true)}
               disabled={isLoading}
               variant="outline" 
               size="sm" 
@@ -415,7 +452,7 @@ function PublicItemCard({ item, delay, onPurchaseChange }: PublicItemCardProps) 
               <DialogTitle>Marcar como comprado</DialogTitle>
               <DialogDescription>
                 Você vai presentear o casal com "{item.name}". 
-                Informe seu nome para que eles saibam quem presenteou!
+                Informe seu nome e CPF para que eles saibam quem presenteou!
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -426,12 +463,35 @@ function PublicItemCard({ item, delay, onPurchaseChange }: PublicItemCardProps) 
                   placeholder="Digite seu nome"
                   value={purchaserName}
                   onChange={(e) => setPurchaserName(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="cpf">CPF</Label>
+                <Input
+                  id="cpf"
+                  placeholder="000.000.000-00"
+                  value={purchaserCPF}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    setPurchaserCPF(value)
+                    // Clear error when user starts typing
+                    if (cpfError) {
+                      setCpfError('')
+                    }
+                  }}
+                  maxLength={14}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       handleMarkAsPurchased()
                     }
                   }}
                 />
+                {cpfError && (
+                  <p className="text-sm text-destructive">{cpfError}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Seu CPF será utilizado apenas para impedir que alguém desmarque seus presentes
+                </p>
               </div>
             </div>
             <DialogFooter>
@@ -440,6 +500,8 @@ function PublicItemCard({ item, delay, onPurchaseChange }: PublicItemCardProps) 
                 onClick={() => {
                   setShowPurchaseDialog(false)
                   setPurchaserName('')
+                  setPurchaserCPF('')
+                  setCpfError('')
                 }}
                 disabled={isLoading}
               >
@@ -450,6 +512,64 @@ function PublicItemCard({ item, delay, onPurchaseChange }: PublicItemCardProps) 
                 disabled={isLoading}
               >
                 {isLoading ? 'Confirmando...' : 'Confirmar'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Unmark Purchase Dialog */}
+        <Dialog open={showUnmarkDialog} onOpenChange={setShowUnmarkDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Desmarcar compra</DialogTitle>
+              <DialogDescription>
+                Para desmarcar este item, você precisa confirmar com o seu CPF.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="unmark-cpf">CPF</Label>
+                <Input
+                  id="unmark-cpf"
+                  placeholder="000.000.000-00"
+                  value={unmarkCPF}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    setUnmarkCPF(value)
+                    // Clear error when user starts typing
+                    if (unmarkCpfError) {
+                      setUnmarkCpfError('')
+                    }
+                  }}
+                  maxLength={14}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleUnmarkAsPurchased()
+                    }
+                  }}
+                />
+                {unmarkCpfError && (
+                  <p className="text-sm text-destructive">{unmarkCpfError}</p>
+                )}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowUnmarkDialog(false)
+                  setUnmarkCPF('')
+                  setUnmarkCpfError('')
+                }}
+                disabled={isLoading}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleUnmarkAsPurchased}
+                disabled={isLoading}
+              >
+                {isLoading ? 'Desmarcando...' : 'Desmarcar'}
               </Button>
             </DialogFooter>
           </DialogContent>
