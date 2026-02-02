@@ -36,7 +36,8 @@ import {
   ImageIcon,
   Share2,
   Copy,
-  Star
+  Star,
+  Edit
 } from 'lucide-react'
 
 interface ListDetailContentProps {
@@ -480,6 +481,11 @@ interface ItemCardProps {
 }
 
 function ItemCard({ item, isOwner, isDeleting, onDelete, onTogglePurchased, delay }: ItemCardProps) {
+  const [showEditDialog, setShowEditDialog] = useState(false)
+  const [editName, setEditName] = useState(item.name)
+  const [editPrice, setEditPrice] = useState(item.price?.toString() || '')
+  const [editImageUrl, setEditImageUrl] = useState(item.image_url || '')
+  const [isSaving, setIsSaving] = useState(false)
   return (
     <Card className={`group animate-fade-in-up ${delay} transition-all duration-300 hover:shadow-lg ${item.is_purchased ? 'opacity-75' : 'hover:scale-[1.02] hover:border-primary/30'}`}>
       <CardHeader className="pb-2">
@@ -561,21 +567,93 @@ function ItemCard({ item, isOwner, isDeleting, onDelete, onTogglePurchased, dela
           )}
           
           {isOwner && (
-            <Button 
-              variant="ghost" 
-              size="icon"
-              onClick={onDelete}
-              disabled={isDeleting}
-              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-            >
-              {isDeleting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Trash2 className="w-4 h-4" />
-              )}
-            </Button>
+            <>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={() => setShowEditDialog(true)}
+                className="h-8 w-8 hover:text-primary"
+                title="Editar produto"
+              >
+                <Edit className="w-4 h-4" />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={onDelete}
+                disabled={isDeleting}
+                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+              >
+                {isDeleting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+              </Button>
+            </>
           )}
         </div>
+
+        {/* Edit Dialog */}
+        <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Editar produto</DialogTitle>
+              <DialogDescription>
+                Atualize os detalhes do produto na sua lista
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-name">Nome do produto</Label>
+                <Input
+                  id="edit-name"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="Nome do produto"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-price">Preço (R$)</Label>
+                <Input
+                  id="edit-price"
+                  type="number"
+                  step="0.01"
+                  value={editPrice}
+                  onChange={(e) => setEditPrice(e.target.value)}
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-image">URL da imagem</Label>
+                <Input
+                  id="edit-image"
+                  value={editImageUrl}
+                  onChange={(e) => setEditImageUrl(e.target.value)}
+                  placeholder="https://..."
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setShowEditDialog(false)}
+                disabled={isSaving}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                onClick={() => {
+                  // TODO: Implementar salvamento das alterações
+                  setShowEditDialog(false)
+                }}
+                disabled={isSaving}
+              >
+                {isSaving ? 'Salvando...' : 'Salvar alterações'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardFooter>
     </Card>
   )

@@ -39,10 +39,9 @@ interface PublicListContentProps {
   list: GiftList
   items: GiftItem[]
   ownerName: string
-  isOwner?: boolean
 }
 
-export function PublicListContent({ list, items, ownerName, isOwner = false }: PublicListContentProps) {
+export function PublicListContent({ list, items, ownerName }: PublicListContentProps) {
   const [localItems, setLocalItems] = useState(items)
   const pendingItems = localItems.filter(i => !i.is_purchased)
   const purchasedItems = localItems.filter(i => i.is_purchased)
@@ -167,7 +166,6 @@ export function PublicListContent({ list, items, ownerName, isOwner = false }: P
                       key={item.id}
                       item={item}
                       delay={`stagger-${(index % 5) + 1}`}
-                      isOwner={isOwner}
                       onPurchaseChange={(updatedItem) => {
                         setLocalItems(prev => 
                           prev.map(i => i.id === updatedItem.id ? updatedItem : i)
@@ -194,7 +192,6 @@ export function PublicListContent({ list, items, ownerName, isOwner = false }: P
                       key={item.id}
                       item={item}
                       delay={`stagger-${(index % 5) + 1}`}
-                      isOwner={isOwner}
                       onPurchaseChange={(updatedItem) => {
                         setLocalItems(prev => 
                           prev.map(i => i.id === updatedItem.id ? updatedItem : i)
@@ -234,23 +231,18 @@ export function PublicListContent({ list, items, ownerName, isOwner = false }: P
 interface PublicItemCardProps {
   item: GiftItem
   delay: string
-  isOwner?: boolean
   onPurchaseChange?: (item: GiftItem) => void
 }
 
-function PublicItemCard({ item, delay, isOwner = false, onPurchaseChange }: PublicItemCardProps) {
+function PublicItemCard({ item, delay, onPurchaseChange }: PublicItemCardProps) {
   const [showPurchaseDialog, setShowPurchaseDialog] = useState(false)
   const [showUnmarkDialog, setShowUnmarkDialog] = useState(false)
-  const [showEditDialog, setShowEditDialog] = useState(false)
   const [purchaserName, setPurchaserName] = useState('')
   const [purchaserCPF, setPurchaserCPF] = useState('')
   const [unmarkCPF, setUnmarkCPF] = useState('')
   const [cpfError, setCpfError] = useState('')
   const [unmarkCpfError, setUnmarkCpfError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [editName, setEditName] = useState(item.name)
-  const [editPrice, setEditPrice] = useState(item.price?.toString() || '')
-  const [editImageUrl, setEditImageUrl] = useState(item.image_url || '')
   const { toast } = useToast()
 
   const handleMarkAsPurchased = async () => {
@@ -445,26 +437,14 @@ function PublicItemCard({ item, delay, isOwner = false, onPurchaseChange }: Publ
                 </a>
               </Button>
             )}
-            <div className="flex gap-2 w-full">
-              <Button 
-                onClick={() => setShowPurchaseDialog(true)}
-                variant={item.product_url ? "outline" : "default"}
-                className="flex-1"
-              >
-                <Gift className="w-4 h-4 mr-2" />
-                Vou comprar
-              </Button>
-              {isOwner && (
-                <Button 
-                  onClick={() => setShowEditDialog(true)}
-                  variant="outline"
-                  size="icon"
-                  title="Editar produto"
-                >
-                  <Edit className="w-4 h-4" />
-                </Button>
-              )}
-            </div>
+            <Button 
+              onClick={() => setShowPurchaseDialog(true)}
+              variant={item.product_url ? "outline" : "default"}
+              className="w-full"
+            >
+              <Gift className="w-4 h-4 mr-2" />
+              Vou comprar
+            </Button>
           </>
         )}
         
@@ -592,69 +572,6 @@ function PublicItemCard({ item, delay, isOwner = false, onPurchaseChange }: Publ
                 disabled={isLoading}
               >
                 {isLoading ? 'Desmarcando...' : 'Desmarcar'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Edit Dialog */}
-        <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Editar produto</DialogTitle>
-              <DialogDescription>
-                Atualize os detalhes do produto na sua lista
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="edit-name">Nome do produto</Label>
-                <Input
-                  id="edit-name"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  placeholder="Nome do produto"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-price">Preço (R$)</Label>
-                <Input
-                  id="edit-price"
-                  type="number"
-                  step="0.01"
-                  value={editPrice}
-                  onChange={(e) => setEditPrice(e.target.value)}
-                  placeholder="0.00"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-image">URL da imagem</Label>
-                <Input
-                  id="edit-image"
-                  value={editImageUrl}
-                  onChange={(e) => setEditImageUrl(e.target.value)}
-                  placeholder="https://..."
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setShowEditDialog(false)}
-              >
-                Cancelar
-              </Button>
-              <Button 
-                onClick={() => {
-                  // TODO: Implementar salvamento das alterações
-                  toast({
-                    title: 'Em desenvolvimento',
-                    description: 'Funcionalidade de edição será implementada em breve',
-                  })
-                  setShowEditDialog(false)
-                }}
-              >
-                Salvar alterações
               </Button>
             </DialogFooter>
           </DialogContent>
