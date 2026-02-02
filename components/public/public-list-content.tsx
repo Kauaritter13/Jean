@@ -39,9 +39,10 @@ interface PublicListContentProps {
   list: GiftList
   items: GiftItem[]
   ownerName: string
+  isOwner?: boolean
 }
 
-export function PublicListContent({ list, items, ownerName }: PublicListContentProps) {
+export function PublicListContent({ list, items, ownerName, isOwner = false }: PublicListContentProps) {
   const [localItems, setLocalItems] = useState(items)
   const pendingItems = localItems.filter(i => !i.is_purchased)
   const purchasedItems = localItems.filter(i => i.is_purchased)
@@ -166,6 +167,7 @@ export function PublicListContent({ list, items, ownerName }: PublicListContentP
                       key={item.id}
                       item={item}
                       delay={`stagger-${(index % 5) + 1}`}
+                      isOwner={isOwner}
                       onPurchaseChange={(updatedItem) => {
                         setLocalItems(prev => 
                           prev.map(i => i.id === updatedItem.id ? updatedItem : i)
@@ -192,6 +194,7 @@ export function PublicListContent({ list, items, ownerName }: PublicListContentP
                       key={item.id}
                       item={item}
                       delay={`stagger-${(index % 5) + 1}`}
+                      isOwner={isOwner}
                       onPurchaseChange={(updatedItem) => {
                         setLocalItems(prev => 
                           prev.map(i => i.id === updatedItem.id ? updatedItem : i)
@@ -231,10 +234,11 @@ export function PublicListContent({ list, items, ownerName }: PublicListContentP
 interface PublicItemCardProps {
   item: GiftItem
   delay: string
+  isOwner?: boolean
   onPurchaseChange?: (item: GiftItem) => void
 }
 
-function PublicItemCard({ item, delay, onPurchaseChange }: PublicItemCardProps) {
+function PublicItemCard({ item, delay, isOwner = false, onPurchaseChange }: PublicItemCardProps) {
   const [showPurchaseDialog, setShowPurchaseDialog] = useState(false)
   const [showUnmarkDialog, setShowUnmarkDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
@@ -441,23 +445,25 @@ function PublicItemCard({ item, delay, onPurchaseChange }: PublicItemCardProps) 
                 </a>
               </Button>
             )}
-            <div className="flex gap-2">
+            <div className="flex gap-2 w-full">
               <Button 
                 onClick={() => setShowPurchaseDialog(true)}
                 variant={item.product_url ? "outline" : "default"}
                 className="flex-1"
-                size="sm"
               >
                 <Gift className="w-4 h-4 mr-2" />
                 Vou comprar
               </Button>
-              <Button 
-                onClick={() => setShowEditDialog(true)}
-                variant="outline"
-                size="sm"
-              >
-                <Edit className="w-4 h-4" />
-              </Button>
+              {isOwner && (
+                <Button 
+                  onClick={() => setShowEditDialog(true)}
+                  variant="outline"
+                  size="icon"
+                  title="Editar produto"
+                >
+                  <Edit className="w-4 h-4" />
+                </Button>
+              )}
             </div>
           </>
         )}
