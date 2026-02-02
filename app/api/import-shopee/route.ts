@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import * as cheerio from "cheerio";
 
 export async function POST(request: Request) {
   try {
@@ -51,11 +50,14 @@ export async function POST(request: Request) {
       );
     }
 
+    console.log("===== SHOPEE IMPORT =====");
+    console.log("URL:", url);
+
     // Fetch the product page
     const response = await fetch(url, {
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       },
     });
 
@@ -67,32 +69,110 @@ export async function POST(request: Request) {
     }
 
     const html = await response.text();
-    const $ = cheerio.load(html);
+    console.log("HTML received, size:", html.length);
 
-    // Try to extract product information from meta tags
-    let name =
-      $('meta[property="og:title"]').attr("content") ||
-      $("title").text() ||
-      "Produto da Shopee";
+    let name = "";
+    let description = "";
+    let imageUrl = "";
+    let price: number | null = null;
 
-    let description =
-      $('meta[property="og:description"]').attr("content") ||
-      $('meta[name="description"]').attr("content") ||
-      "";
+    // Method 1: Extract from og: meta tags (works before JS renders)
+    const ogTitleMatch = html.match(
+      /<meta\s+property="og:title"\s+content="([^"]*)"/i,
+    );
+    if (ogTitleMatch && ogTitleMatch[1]) {
+      name = ogTitleMatch[1];
+      console.log("Found og:title:", name);
+    }
 
-    let imageUrl = $('meta[property="og:image"]').attr("content") || "";
+    const ogDescMatch = html.match(
+      /<meta\s+property="og:description"\s+content="([^"]*)"/i,
+    );
+    if (ogDescMatch && ogDescMatch[1]) {
+      description = ogDescMatch[1];
+      console.log("Found og:description");
+    }
 
-    let priceText =
-      $('meta[property="product:price:amount"]').attr("content") || "";
-    let price = priceText ? parseFloat(priceText) : null;
+    const ogImageMatch = html.match(
+      /<meta\s+property="og:image"\s+content="([^"]*)"/i,
+    );
+    if (ogImageMatch && ogImageMatch[1]) {
+      imageUrl = ogImageMatch[1];
+      console.log("Found og:image");
+    }
 
-    // Clean up the name (remove Shopee suffix)
-    name = name.replace(/\s*\|\s*Shopee.*$/i, "").trim();
+    // Method 2: Try to extract from page title as backup
+    if (!name) {
+      const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+      if (titleMatch && titleMatch[1]) {
+        name = titleMatch[1].split("|")[0].trim();
+        console.log("Found title:", name);
+      }
+    }
 
-    // Limit description length
-    if (description.length > 500) {
+    // Method 3: Try to find price in multiple formats
+    if (!price) {
+      // Look for common Shopee price patterns in HTML
+      const pricePatterns = [
+        /"price"\s*:\s*(\d+\.?\d*)/i,
+        /preço[\s"]*:[\s"]*R\$\s*([\d.,]+)/i,
+        /R\$\s+([\d.,]+)/i,
+      ];
+
+      for (const pattern of pricePatterns) {
+        const match = html.match(pattern);
+        if (match && match[1]) {
+          const priceStr = match[1].replace(/\./g, "").replace(",", ".");
+          const parsed = parseFloat(priceStr);
+          if (!isNaN(parsed) && parsed > 0 && parsed < 1000000) {
+            price = parsed;
+            console.log("Found price:", price);
+            break;
+          }
+        }
+      }
+    }
+
+    // Clean up name - remove Shopee markers
+    if (name) {
+      name = name
+        .replace(/\s*\|\s*Shopee.*$/i, "")
+        .replace(/\s*-\s*Shopee.*$/i, "")
+        .replace(/Shopee\s*/i, "")
+        .trim();
+    }
+
+    // If still no name, try to extract from URL
+    if (!name) {
+      const urlParts = url.split("/");
+      if (urlParts.length > 0) {
+        const lastPart = urlParts[urlParts.length - 1];
+        if (lastPart && !lastPart.match(/^\d+$/)) {
+          name = decodeURIComponent(lastPart).replace(/-/g, " ").trim();
+          console.log("Extracted name from URL:", name);
+        }
+      }
+    }
+
+    // Final fallback
+    if (!name) {
+      name = "Produto importado da Shopee";
+      console.log("Using fallback name");
+    }
+
+    // Limit description
+    if (description && description.length > 500) {
       description = description.substring(0, 497) + "...";
     }
+
+    console.log(
+      "Final data - Name:",
+      name,
+      "Price:",
+      price,
+      "Image:",
+      !!imageUrl,
+    );
 
     // Create the gift item
     const { data: item, error: insertError } = await supabase
