@@ -486,6 +486,40 @@ function ItemCard({ item, isOwner, isDeleting, onDelete, onTogglePurchased, dela
   const [editPrice, setEditPrice] = useState(item.price?.toString() || '')
   const [editImageUrl, setEditImageUrl] = useState(item.image_url || '')
   const [isSaving, setIsSaving] = useState(false)
+
+  const handleSaveEdit = async () => {
+    if (!editName.trim()) {
+      alert('Nome do produto é obrigatório')
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const response = await fetch('/api/update-item', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          itemId: item.id,
+          name: editName.trim(),
+          price: editPrice ? parseFloat(editPrice) : null,
+          imageUrl: editImageUrl.trim() || null,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao atualizar item')
+      }
+
+      setShowEditDialog(false)
+      window.location.reload()
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Erro ao atualizar item')
+    } finally {
+      setIsSaving(false)
+    }
+  }
   return (
     <Card className={`group animate-fade-in-up ${delay} transition-all duration-300 hover:shadow-lg ${item.is_purchased ? 'opacity-75' : 'hover:scale-[1.02] hover:border-primary/30'}`}>
       <CardHeader className="pb-2">
@@ -643,10 +677,7 @@ function ItemCard({ item, isOwner, isDeleting, onDelete, onTogglePurchased, dela
                 Cancelar
               </Button>
               <Button 
-                onClick={() => {
-                  // TODO: Implementar salvamento das alterações
-                  setShowEditDialog(false)
-                }}
+                onClick={handleSaveEdit}
                 disabled={isSaving}
               >
                 {isSaving ? 'Salvando...' : 'Salvar alterações'}
