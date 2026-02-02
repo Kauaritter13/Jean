@@ -19,7 +19,9 @@ import {
   ImageIcon,
   Home,
   Star,
-  PartyPopper
+  PartyPopper,
+  Edit,
+  X
 } from 'lucide-react'
 import {
   Dialog,
@@ -235,12 +237,16 @@ interface PublicItemCardProps {
 function PublicItemCard({ item, delay, onPurchaseChange }: PublicItemCardProps) {
   const [showPurchaseDialog, setShowPurchaseDialog] = useState(false)
   const [showUnmarkDialog, setShowUnmarkDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
   const [purchaserName, setPurchaserName] = useState('')
   const [purchaserCPF, setPurchaserCPF] = useState('')
   const [unmarkCPF, setUnmarkCPF] = useState('')
   const [cpfError, setCpfError] = useState('')
   const [unmarkCpfError, setUnmarkCpfError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [editName, setEditName] = useState(item.name)
+  const [editPrice, setEditPrice] = useState(item.price?.toString() || '')
+  const [editImageUrl, setEditImageUrl] = useState(item.image_url || '')
   const { toast } = useToast()
 
   const handleMarkAsPurchased = async () => {
@@ -352,9 +358,9 @@ function PublicItemCard({ item, delay, onPurchaseChange }: PublicItemCardProps) 
     }
   }
   return (
-    <Card className={`group animate-fade-in-up ${delay} transition-all duration-300 hover:shadow-lg ${item.is_purchased ? 'opacity-75' : 'hover:scale-[1.02]'}`}>
+    <Card className={`group animate-fade-in-up ${delay} transition-all duration-300 hover:shadow-lg overflow-hidden flex flex-col ${item.is_purchased ? 'opacity-75' : 'hover:scale-[1.02]'}`}>
       <CardHeader className="pb-2">
-        <div className="flex items-start gap-3">
+        <div className="flex items-start gap-3 min-h-[80px]">
           {item.image_url ? (
             <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-muted flex-shrink-0 group-hover:scale-105 transition-transform">
               <Image
@@ -374,8 +380,8 @@ function PublicItemCard({ item, delay, onPurchaseChange }: PublicItemCardProps) 
               <ImageIcon className="w-8 h-8 text-muted-foreground" />
             </div>
           )}
-          <div className="flex-1 min-w-0">
-            <CardTitle className={`text-base line-clamp-2 ${item.is_purchased ? 'line-through text-muted-foreground' : ''}`}>
+          <div className="flex-1 min-w-0 overflow-hidden">
+            <CardTitle className={`text-sm font-semibold break-words ${item.is_purchased ? 'line-through text-muted-foreground' : ''}`}>
               {item.name}
             </CardTitle>
             {item.source && (
@@ -407,7 +413,7 @@ function PublicItemCard({ item, delay, onPurchaseChange }: PublicItemCardProps) 
         </div>
       </CardContent>
       
-      <CardFooter className="pt-2 flex flex-col gap-2">
+      <CardFooter className="pt-2 flex flex-col gap-2 mt-auto">
         {item.is_purchased ? (
           <>
             <div className="w-full text-center py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium flex items-center justify-center gap-2">
@@ -435,14 +441,24 @@ function PublicItemCard({ item, delay, onPurchaseChange }: PublicItemCardProps) 
                 </a>
               </Button>
             )}
-            <Button 
-              onClick={() => setShowPurchaseDialog(true)}
-              variant={item.product_url ? "outline" : "default"}
-              className="w-full"
-            >
-              <Gift className="w-4 h-4 mr-2" />
-              Vou comprar este
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => setShowPurchaseDialog(true)}
+                variant={item.product_url ? "outline" : "default"}
+                className="flex-1"
+                size="sm"
+              >
+                <Gift className="w-4 h-4 mr-2" />
+                Vou comprar
+              </Button>
+              <Button 
+                onClick={() => setShowEditDialog(true)}
+                variant="outline"
+                size="sm"
+              >
+                <Edit className="w-4 h-4" />
+              </Button>
+            </div>
           </>
         )}
         
@@ -570,6 +586,69 @@ function PublicItemCard({ item, delay, onPurchaseChange }: PublicItemCardProps) 
                 disabled={isLoading}
               >
                 {isLoading ? 'Desmarcando...' : 'Desmarcar'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Dialog */}
+        <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Editar produto</DialogTitle>
+              <DialogDescription>
+                Atualize os detalhes do produto na sua lista
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-name">Nome do produto</Label>
+                <Input
+                  id="edit-name"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="Nome do produto"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-price">Preço (R$)</Label>
+                <Input
+                  id="edit-price"
+                  type="number"
+                  step="0.01"
+                  value={editPrice}
+                  onChange={(e) => setEditPrice(e.target.value)}
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-image">URL da imagem</Label>
+                <Input
+                  id="edit-image"
+                  value={editImageUrl}
+                  onChange={(e) => setEditImageUrl(e.target.value)}
+                  placeholder="https://..."
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setShowEditDialog(false)}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                onClick={() => {
+                  // TODO: Implementar salvamento das alterações
+                  toast({
+                    title: 'Em desenvolvimento',
+                    description: 'Funcionalidade de edição será implementada em breve',
+                  })
+                  setShowEditDialog(false)
+                }}
+              >
+                Salvar alterações
               </Button>
             </DialogFooter>
           </DialogContent>

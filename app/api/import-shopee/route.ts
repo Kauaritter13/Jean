@@ -135,13 +135,22 @@ export async function POST(request: Request) {
         if (apiResponse.ok) {
           try {
             const data = await apiResponse.json();
+            debug.extractedData.apiRawResponse = JSON.stringify(data).substring(
+              0,
+              500,
+            );
             debug.extractedData.apiResponse = {
               hasData: !!data.data,
               hasProduct: !!data.data?.product,
+              dataKeys: data.data ? Object.keys(data.data) : [],
             };
 
             if (data.data?.product) {
               const product = data.data.product;
+              debug.extractedData.apiProductKeys = Object.keys(product).slice(
+                0,
+                20,
+              );
 
               // Extract name
               if (product.name) {
@@ -149,22 +158,93 @@ export async function POST(request: Request) {
                 debug.extractedData.name = name;
               }
 
-              // Extract price
-              if (product.price) {
-                price = product.price / 100000; // Shopee returns price in small units
+              // Extract price - try multiple possible fields
+              let extractedPrice = null;
+              const priceFields = [
+                "price",
+                "normal_price",
+                "normalPrice",
+                "original_price",
+                "sale_price",
+                "current_price",
+                "min_price",
+                "max_price",
+              ];
+
+              for (const field of priceFields) {
+                if (product[field] && !extractedPrice) {
+                  const val = product[field];
+                  // Price might be in cents (divide by 100) or in small units (divide by 100000)
+                  if (val > 1000000) {
+                    extractedPrice = val / 100000;
+                  } else if (val > 100) {
+                    extractedPrice = val / 100;
+                  } else {
+                    extractedPrice = val;
+                  }
+
+                  if (extractedPrice > 0.01 && extractedPrice < 1000000) {
+                    price = extractedPrice;
+                    debug.extractedData.price = {
+                      field: field,
+                      raw: val,
+                      converted: price,
+                    };
+                    break;
+                  }
+                }
+              }
+
+              if (!extractedPrice) {
                 debug.extractedData.price = {
-                  raw: product.price,
-                  converted: price,
+                  status: "not found",
+                  attemptedFields: priceFields,
                 };
               }
 
-              // Extract image
-              if (product.image) {
-                imageUrl = `https://down-br.img.susercontent.com/file/${product.image}`;
-                debug.extractedData.image = imageUrl.substring(0, 100);
-              } else if (product.images && product.images.length > 0) {
-                imageUrl = `https://down-br.img.susercontent.com/file/${product.images[0]}`;
-                debug.extractedData.image = imageUrl.substring(0, 100);
+              // Extract image - try multiple possible fields
+              const imageFields = [
+                "image",
+                "picture",
+                "cover",
+                "thumbnail",
+                "images",
+              ];
+
+              for (const field of imageFields) {
+                if (!imageUrl && product[field]) {
+                  if (typeof product[field] === "string") {
+                    imageUrl = product[field].includes("http")
+                      ? product[field]
+                      : `https://down-br.img.susercontent.com/file/${product[field]}`;
+                    debug.extractedData.image = {
+                      field: field,
+                      url: imageUrl.substring(0, 100),
+                    };
+                    break;
+                  } else if (
+                    Array.isArray(product[field]) &&
+                    product[field].length > 0
+                  ) {
+                    const img = product[field][0];
+                    imageUrl =
+                      typeof img === "string" && img.includes("http")
+                        ? img
+                        : `https://down-br.img.susercontent.com/file/${img}`;
+                    debug.extractedData.image = {
+                      field: field,
+                      url: imageUrl.substring(0, 100),
+                    };
+                    break;
+                  }
+                }
+              }
+
+              if (!imageUrl) {
+                debug.extractedData.image = {
+                  status: "not found",
+                  attemptedFields: imageFields,
+                };
               }
 
               console.log("✓ Data extracted from API:", {
