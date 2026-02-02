@@ -15,6 +15,7 @@ export async function POST(request: Request) {
 
     // Validate CPF
     if (!isValidCPF(purchasedByCPF)) {
+      console.error("Invalid CPF:", purchasedByCPF);
       return NextResponse.json(
         { error: "CPF inválido. Por favor, verifique o número informado." },
         { status: 400 },
@@ -24,12 +25,22 @@ export async function POST(request: Request) {
     const supabase = await createClient();
 
     // Update item to mark as purchased
+    const cleanCPF = purchasedByCPF.replace(/\D/g, "");
+    console.log(
+      "Marking item as purchased - CPF:",
+      cleanCPF,
+      "Name:",
+      purchasedByName,
+      "ItemId:",
+      itemId,
+    );
+
     const { data, error } = await supabase
       .from("gift_items")
       .update({
         is_purchased: true,
         purchased_by_name: purchasedByName,
-        purchased_by_cpf: purchasedByCPF.replace(/\D/g, ""), // Store only digits
+        purchased_by_cpf: cleanCPF,
         updated_at: new Date().toISOString(),
       })
       .eq("id", itemId)
@@ -44,6 +55,7 @@ export async function POST(request: Request) {
       );
     }
 
+    console.log("Item marked as purchased:", data);
     return NextResponse.json({ success: true, data });
   } catch (error) {
     console.error("Error in mark-purchased API:", error);
@@ -67,6 +79,7 @@ export async function DELETE(request: Request) {
 
     // Validate CPF format
     if (!isValidCPF(cpf)) {
+      console.error("Invalid CPF for unmark:", cpf);
       return NextResponse.json({ error: "CPF inválido" }, { status: 400 });
     }
 
@@ -80,6 +93,7 @@ export async function DELETE(request: Request) {
       .single();
 
     if (fetchError || !item) {
+      console.error("Item not found:", itemId);
       return NextResponse.json(
         { error: "Item não encontrado" },
         { status: 404 },
@@ -88,7 +102,20 @@ export async function DELETE(request: Request) {
 
     // Check if the CPF matches the one who purchased it
     const cleanCPF = cpf.replace(/\D/g, "");
+    console.log(
+      "Unmark attempt - Provided CPF:",
+      cleanCPF,
+      "Stored CPF:",
+      item.purchased_by_cpf,
+    );
+
     if (item.purchased_by_cpf !== cleanCPF) {
+      console.error(
+        "CPF mismatch - Provided:",
+        cleanCPF,
+        "Stored:",
+        item.purchased_by_cpf,
+      );
       return NextResponse.json(
         {
           error:
@@ -119,6 +146,7 @@ export async function DELETE(request: Request) {
       );
     }
 
+    console.log("Item unmarked successfully");
     return NextResponse.json({ success: true, data });
   } catch (error) {
     console.error("Error in unmark API:", error);
