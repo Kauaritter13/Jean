@@ -69,7 +69,12 @@ export async function POST(request: Request) {
     }
 
     const html = await response.text();
-    console.log("HTML received, size:", html.length);
+
+    // Debug tracking
+    const debug = {
+      htmlSize: html.length,
+      extractedData: {} as any,
+    };
 
     let name = "";
     let description = "";
@@ -82,7 +87,7 @@ export async function POST(request: Request) {
     );
     if (ogTitleMatch && ogTitleMatch[1]) {
       name = ogTitleMatch[1];
-      console.log("Found og:title:", name);
+      debug.extractedData.ogTitle = name;
     }
 
     const ogDescMatch = html.match(
@@ -90,15 +95,44 @@ export async function POST(request: Request) {
     );
     if (ogDescMatch && ogDescMatch[1]) {
       description = ogDescMatch[1];
-      console.log("Found og:description");
+      debug.extractedData.ogDescription = true;
     }
 
-    const ogImageMatch = html.match(
+    // Try multiple image meta tags
+    let ogImageMatch = html.match(
       /<meta\s+property="og:image"\s+content="([^"]*)"/i,
     );
+    let imageSource = "og:image";
+    if (!ogImageMatch) {
+      // Try twitter:image
+      ogImageMatch = html.match(
+        /<meta\s+name="twitter:image"\s+content="([^"]*)"/i,
+      );
+      imageSource = "twitter:image";
+    }
+    if (!ogImageMatch) {
+      // Try image meta tag
+      ogImageMatch = html.match(
+        /<meta\s+property="image"\s+content="([^"]*)"/i,
+      );
+      imageSource = "image";
+    }
+    if (!ogImageMatch) {
+      // Try to find img src in common patterns
+      const imgMatch = html.match(/<img[^>]+src="([^"]*shopee[^"]*)"/i);
+      if (imgMatch && imgMatch[1]) {
+        ogImageMatch = imgMatch;
+        imageSource = "img src";
+      }
+    }
     if (ogImageMatch && ogImageMatch[1]) {
       imageUrl = ogImageMatch[1];
-      console.log("Found og:image");
+      debug.extractedData.image = {
+        source: imageSource,
+        url: imageUrl.substring(0, 100),
+      };
+    } else {
+      debug.extractedData.image = { found: false };
     }
 
     // Method 2: Try to extract from page title as backup
@@ -106,7 +140,7 @@ export async function POST(request: Request) {
       const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
       if (titleMatch && titleMatch[1]) {
         name = titleMatch[1].split("|")[0].trim();
-        console.log("Found title:", name);
+        debug.extractedData.fallbackTitle = name;
       }
     }
 
@@ -114,32 +148,88 @@ export async function POST(request: Request) {
     if (!price) {
       // Look for common Shopee price patterns in HTML
       const pricePatterns = [
-        /"price"\s*:\s*(\d+\.?\d*)/i,
-        /preço[\s"]*:[\s"]*R\$\s*([\d.,]+)/i,
-        /R\$\s+([\d.,]+)/i,
+        // JSON format: "price":12990
+        { regex: /"price"\s*:\s*(\d+(?:\.\d{2})?)/i, name: '"price": number' },
+        // JSON format: "price":"12.99"
+        { regex: /"price"\s*:\s*"?([\d.,]+)"?/i, name: '"price": string' },
+        // Price in HTML: preço: R$ 12.99
+        { regex: /preço[\s"']*:[\s"']*R\$\s*([\d.,]+)/i, name: "preço: R$" },
+        // Direct: R$ 12.99 or R$ 1.299,99
+        { regex: /R\$\s+([\d.,]+)/i, name: "R$ (with space)" },
+        // Alternate: R$ 12,99
+        { regex: /R\$\s*([\d,]+)/i, name: "R$ (no space)" },
+        // No symbol: just numbers that look like price
+        {
+          regex: /"price"[\s"']*[:\s=]+[\s"']*(\d{2,})/i,
+          name: '"price" = number',
+        },
+        // shopee price format in JSON
+        {
+          regex: /"current_price"\s*:\s*"?([\d.,]+)"?/i,
+          name: '"current_price"',
+        },
+        // shopee tier list price
+        {
+          regex: /"normalPrice"\s*:\s*"?([\d.,]+)"?/i,
+          name: '"normalPrice"',
+        },
       ];
 
-      for (const pattern of pricePatterns) {
+      debug.extractedData.priceAttempts = [];
+      for (const { regex: pattern, name: patternName } of pricePatterns) {
         const match = html.match(pattern);
         if (match && match[1]) {
-          const priceStr = match[1].replace(/\./g, "").replace(",", ".");
+          const priceStr = String(match[1])
+            .replace(/\./g, "") // Remove thousand separators (dots)
+            .replace(",", "."); // Convert comma decimal to period
           const parsed = parseFloat(priceStr);
-          if (!isNaN(parsed) && parsed > 0 && parsed < 1000000) {
+
+          // Validate price is reasonable (between 0.01 and 999,999)
+          if (!isNaN(parsed) && parsed > 0.01 && parsed < 1000000) {
             price = parsed;
-            console.log("Found price:", price);
+            debug.extractedData.priceFound = {
+              pattern: patternName,
+              raw: match[1],
+              parsed: price,
+            };
+            debug.extractedData.priceAttempts.push({
+              pattern: patternName,
+              found: true,
+            });
             break;
+          } else {
+            debug.extractedData.priceAttempts.push({
+              pattern: patternName,
+              found: false,
+              reason: "validation failed",
+            });
           }
+        } else {
+          debug.extractedData.priceAttempts.push({
+            pattern: patternName,
+            found: false,
+            reason: "no match",
+          });
         }
       }
     }
 
-    // Clean up name - remove Shopee markers
+    // Clean up name - remove Shopee markers and product IDs
+    const originalName = name;
     if (name) {
       name = name
-        .replace(/\s*\|\s*Shopee.*$/i, "")
-        .replace(/\s*-\s*Shopee.*$/i, "")
-        .replace(/Shopee\s*/i, "")
+        .replace(/\s*\|\s*Shopee.*$/i, "") // Remove | Shopee
+        .replace(/\s*-\s*Shopee.*$/i, "") // Remove - Shopee
+        .replace(/Shopee\s*/i, "") // Remove Shopee word
+        .replace(/\s+i\.\d+\.\d+/i, "") // Remove product ID like "i.616222685.23399292930"
+        .replace(/\s*[\[\(].*[\]\)].*$/i, "") // Remove brackets/parentheses at end
         .trim();
+      if (originalName !== name) {
+        debug.extractedData.nameCleaned = {
+          before: originalName,
+          after: name,
+        };
+      }
     }
 
     // If still no name, try to extract from URL
@@ -148,8 +238,11 @@ export async function POST(request: Request) {
       if (urlParts.length > 0) {
         const lastPart = urlParts[urlParts.length - 1];
         if (lastPart && !lastPart.match(/^\d+$/)) {
-          name = decodeURIComponent(lastPart).replace(/-/g, " ").trim();
-          console.log("Extracted name from URL:", name);
+          name = decodeURIComponent(lastPart)
+            .replace(/-/g, " ")
+            .replace(/\s+i\.\d+\.\d+/i, "") // Remove product ID
+            .trim();
+          debug.extractedData.nameFromUrl = name;
         }
       }
     }
@@ -157,7 +250,7 @@ export async function POST(request: Request) {
     // Final fallback
     if (!name) {
       name = "Produto importado da Shopee";
-      console.log("Using fallback name");
+      debug.extractedData.nameFallback = true;
     }
 
     // Limit description
@@ -165,14 +258,8 @@ export async function POST(request: Request) {
       description = description.substring(0, 497) + "...";
     }
 
-    console.log(
-      "Final data - Name:",
-      name,
-      "Price:",
-      price,
-      "Image:",
-      !!imageUrl,
-    );
+    console.log("===== SHOPEE IMPORT DEBUG =====");
+    console.log(JSON.stringify(debug, null, 2));
 
     // Create the gift item
     const { data: item, error: insertError } = await supabase
@@ -194,12 +281,12 @@ export async function POST(request: Request) {
     if (insertError) {
       console.error("Error creating item:", insertError);
       return NextResponse.json(
-        { error: "Erro ao criar item na lista" },
+        { error: "Erro ao criar item na lista", debug },
         { status: 500 },
       );
     }
 
-    return NextResponse.json({ success: true, item });
+    return NextResponse.json({ success: true, item, debug });
   } catch (error) {
     console.error("Error importing from Shopee:", error);
     return NextResponse.json(
