@@ -73,6 +73,7 @@ export async function POST(request: Request) {
     // Debug tracking
     const debug = {
       htmlSize: html.length,
+      htmlSnippet: html.substring(0, 2000), // First 2000 chars to see structure
       extractedData: {} as any,
     };
 
@@ -202,6 +203,13 @@ export async function POST(request: Request) {
               pattern: patternName,
               found: false,
               reason: "validation failed",
+              raw: match[1],
+              parsed: parsed,
+              validationDetails: {
+                isNaN: isNaN(parsed),
+                greaterThan001: parsed > 0.01,
+                lessThan1000000: parsed < 1000000,
+              },
             });
           }
         } else {
