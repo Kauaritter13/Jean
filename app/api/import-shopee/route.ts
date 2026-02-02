@@ -1,6 +1,32 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+// Extract shop_id and product_id from Shopee URL
+function extractShopAndProductIds(url: string): {
+  shopId: string | null;
+  productId: string | null;
+} {
+  // Format: https://shopee.com.br/product-name-i.SHOP_ID.PRODUCT_ID
+  const match = url.match(/\/i\.(\d+)\.(\d+)/);
+  if (match) {
+    return {
+      shopId: match[1],
+      productId: match[2],
+    };
+  }
+
+  // Try without the i. prefix
+  const altMatch = url.match(/\.(\d+)\.(\d+)(?:\?|$)/);
+  if (altMatch) {
+    return {
+      shopId: altMatch[1],
+      productId: altMatch[2],
+    };
+  }
+
+  return { shopId: null, productId: null };
+}
+
 export async function POST(request: Request) {
   try {
     const { url, listId } = await request.json();
@@ -72,8 +98,9 @@ export async function POST(request: Request) {
 
     // Debug tracking
     const debug = {
-      htmlSize: html.length,
-      htmlSnippet: html.substring(0, 2000), // First 2000 chars to see structure
+      method: "unknown" as string,
+      url: url,
+      extractedIds: {} as any,
       extractedData: {} as any,
     };
 
@@ -82,156 +109,155 @@ export async function POST(request: Request) {
     let imageUrl = "";
     let price: number | null = null;
 
-    // Method 1: Extract from og: meta tags (works before JS renders)
-    const ogTitleMatch = html.match(
-      /<meta\s+property="og:title"\s+content="([^"]*)"/i,
-    );
-    if (ogTitleMatch && ogTitleMatch[1]) {
-      name = ogTitleMatch[1];
-      debug.extractedData.ogTitle = name;
-    }
+    // Step 1: Try to extract IDs from URL
+    const { shopId, productId } = extractShopAndProductIds(url);
+    debug.extractedIds = { shopId, productId };
 
-    const ogDescMatch = html.match(
-      /<meta\s+property="og:description"\s+content="([^"]*)"/i,
-    );
-    if (ogDescMatch && ogDescMatch[1]) {
-      description = ogDescMatch[1];
-      debug.extractedData.ogDescription = true;
-    }
+    if (shopId && productId) {
+      debug.method = "Shopee API";
+      try {
+        console.log(
+          `Fetching from Shopee API: shop=${shopId}, product=${productId}`,
+        );
 
-    // Try multiple image meta tags
-    let ogImageMatch = html.match(
-      /<meta\s+property="og:image"\s+content="([^"]*)"/i,
-    );
-    let imageSource = "og:image";
-    if (!ogImageMatch) {
-      // Try twitter:image
-      ogImageMatch = html.match(
-        /<meta\s+name="twitter:image"\s+content="([^"]*)"/i,
-      );
-      imageSource = "twitter:image";
-    }
-    if (!ogImageMatch) {
-      // Try image meta tag
-      ogImageMatch = html.match(
-        /<meta\s+property="image"\s+content="([^"]*)"/i,
-      );
-      imageSource = "image";
-    }
-    if (!ogImageMatch) {
-      // Try to find img src in common patterns
-      const imgMatch = html.match(/<img[^>]+src="([^"]*shopee[^"]*)"/i);
-      if (imgMatch && imgMatch[1]) {
-        ogImageMatch = imgMatch;
-        imageSource = "img src";
+        // Try Shopee's API endpoint
+        const apiUrl = `https://shopee.com.br/api/v4/product/get_product_detail?shop_id=${shopId}&product_id=${productId}`;
+
+        const apiResponse = await fetch(apiUrl, {
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            Accept: "application/json",
+            Referer: url,
+          },
+        });
+
+        if (apiResponse.ok) {
+          try {
+            const data = await apiResponse.json();
+            debug.extractedData.apiResponse = {
+              hasData: !!data.data,
+              hasProduct: !!data.data?.product,
+            };
+
+            if (data.data?.product) {
+              const product = data.data.product;
+
+              // Extract name
+              if (product.name) {
+                name = product.name;
+                debug.extractedData.name = name;
+              }
+
+              // Extract price
+              if (product.price) {
+                price = product.price / 100000; // Shopee returns price in small units
+                debug.extractedData.price = {
+                  raw: product.price,
+                  converted: price,
+                };
+              }
+
+              // Extract image
+              if (product.image) {
+                imageUrl = `https://down-br.img.susercontent.com/file/${product.image}`;
+                debug.extractedData.image = imageUrl.substring(0, 100);
+              } else if (product.images && product.images.length > 0) {
+                imageUrl = `https://down-br.img.susercontent.com/file/${product.images[0]}`;
+                debug.extractedData.image = imageUrl.substring(0, 100);
+              }
+
+              console.log("✓ Data extracted from API:", {
+                name,
+                price,
+                hasImage: !!imageUrl,
+              });
+            }
+          } catch (parseError) {
+            console.log("Could not parse API response as JSON");
+            debug.extractedData.apiParseError = true;
+          }
+        } else {
+          console.log("API request failed:", apiResponse.status);
+          debug.extractedData.apiError = apiResponse.status;
+        }
+      } catch (apiError) {
+        console.log("API fetch error:", apiError);
+        debug.extractedData.apiFetchError = true;
       }
     }
-    if (ogImageMatch && ogImageMatch[1]) {
-      imageUrl = ogImageMatch[1];
-      debug.extractedData.image = {
-        source: imageSource,
-        url: imageUrl.substring(0, 100),
-      };
-    } else {
-      debug.extractedData.image = { found: false };
-    }
 
-    // Method 2: Try to extract from page title as backup
+    // Step 2: If API method didn't work, try HTML parsing as fallback
     if (!name) {
-      const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-      if (titleMatch && titleMatch[1]) {
-        name = titleMatch[1].split("|")[0].trim();
-        debug.extractedData.fallbackTitle = name;
-      }
-    }
+      debug.method =
+        debug.method === "unknown"
+          ? "HTML Fallback"
+          : debug.method + " + HTML Fallback";
+      console.log("Attempting HTML fallback...");
 
-    // Method 3: Try to find price in multiple formats
-    if (!price) {
-      // Look for common Shopee price patterns in HTML
+      const htmlSnippet = html.substring(0, 2000);
+      debug.extractedData.htmlSize = html.length;
+      debug.extractedData.htmlSnippet = htmlSnippet;
+
+      // Extract from og: meta tags
+      const ogTitleMatch = html.match(
+        /<meta\s+property="og:title"\s+content="([^"]*)"/i,
+      );
+      if (ogTitleMatch && ogTitleMatch[1]) {
+        name = ogTitleMatch[1];
+        debug.extractedData.ogTitle = name;
+      }
+
+      // Try image meta tags
+      let ogImageMatch = html.match(
+        /<meta\s+property="og:image"\s+content="([^"]*)"/i,
+      );
+      if (!ogImageMatch) {
+        ogImageMatch = html.match(
+          /<meta\s+name="twitter:image"\s+content="([^"]*)"/i,
+        );
+      }
+      if (ogImageMatch && ogImageMatch[1]) {
+        imageUrl = ogImageMatch[1];
+        debug.extractedData.image = imageUrl.substring(0, 100);
+      }
+
+      // Try to find price in HTML
       const pricePatterns = [
-        // JSON format: "price":12990
-        { regex: /"price"\s*:\s*(\d+(?:\.\d{2})?)/i, name: '"price": number' },
-        // JSON format: "price":"12.99"
-        { regex: /"price"\s*:\s*"?([\d.,]+)"?/i, name: '"price": string' },
-        // Price in HTML: preço: R$ 12.99
-        { regex: /preço[\s"']*:[\s"']*R\$\s*([\d.,]+)/i, name: "preço: R$" },
-        // Direct: R$ 12.99 or R$ 1.299,99
-        { regex: /R\$\s+([\d.,]+)/i, name: "R$ (with space)" },
-        // Alternate: R$ 12,99
-        { regex: /R\$\s*([\d,]+)/i, name: "R$ (no space)" },
-        // No symbol: just numbers that look like price
-        {
-          regex: /"price"[\s"']*[:\s=]+[\s"']*(\d{2,})/i,
-          name: '"price" = number',
-        },
-        // shopee price format in JSON
-        {
-          regex: /"current_price"\s*:\s*"?([\d.,]+)"?/i,
-          name: '"current_price"',
-        },
-        // shopee tier list price
-        {
-          regex: /"normalPrice"\s*:\s*"?([\d.,]+)"?/i,
-          name: '"normalPrice"',
-        },
+        /"price"\s*:\s*(\d+(?:\.\d{2})?)/i,
+        /"price"\s*:\s*"?([\d.,]+)"?/i,
+        /R\$\s+([\d.,]+)/i,
+        /R\$\s*([\d,]+)/i,
       ];
 
-      debug.extractedData.priceAttempts = [];
-      for (const { regex: pattern, name: patternName } of pricePatterns) {
+      for (const pattern of pricePatterns) {
         const match = html.match(pattern);
         if (match && match[1]) {
           const priceStr = String(match[1])
-            .replace(/\./g, "") // Remove thousand separators (dots)
-            .replace(",", "."); // Convert comma decimal to period
+            .replace(/\./g, "")
+            .replace(",", ".");
           const parsed = parseFloat(priceStr);
 
-          // Validate price is reasonable (between 0.01 and 999,999)
           if (!isNaN(parsed) && parsed > 0.01 && parsed < 1000000) {
             price = parsed;
-            debug.extractedData.priceFound = {
-              pattern: patternName,
-              raw: match[1],
-              parsed: price,
-            };
-            debug.extractedData.priceAttempts.push({
-              pattern: patternName,
-              found: true,
-            });
+            debug.extractedData.htmlPrice = { raw: match[1], parsed: price };
             break;
-          } else {
-            debug.extractedData.priceAttempts.push({
-              pattern: patternName,
-              found: false,
-              reason: "validation failed",
-              raw: match[1],
-              parsed: parsed,
-              validationDetails: {
-                isNaN: isNaN(parsed),
-                greaterThan001: parsed > 0.01,
-                lessThan1000000: parsed < 1000000,
-              },
-            });
           }
-        } else {
-          debug.extractedData.priceAttempts.push({
-            pattern: patternName,
-            found: false,
-            reason: "no match",
-          });
         }
       }
     }
 
-    // Clean up name - remove Shopee markers and product IDs
-    const originalName = name;
+    // Step 3: Clean up name
     if (name) {
+      const originalName = name;
       name = name
-        .replace(/\s*\|\s*Shopee.*$/i, "") // Remove | Shopee
-        .replace(/\s*-\s*Shopee.*$/i, "") // Remove - Shopee
-        .replace(/Shopee\s*/i, "") // Remove Shopee word
-        .replace(/\s+i\.\d+\.\d+/i, "") // Remove product ID like "i.616222685.23399292930"
-        .replace(/\s*[\[\(].*[\]\)].*$/i, "") // Remove brackets/parentheses at end
+        .replace(/\s*\|\s*Shopee.*$/i, "")
+        .replace(/\s*-\s*Shopee.*$/i, "")
+        .replace(/Shopee\s*/i, "")
+        .replace(/\s+i\.\d+\.\d+/i, "")
+        .replace(/\s*[\[\(].*[\]\)].*$/i, "")
         .trim();
+
       if (originalName !== name) {
         debug.extractedData.nameCleaned = {
           before: originalName,
@@ -240,7 +266,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // If still no name, try to extract from URL
+    // Step 4: Fallback - extract from URL
     if (!name) {
       const urlParts = url.split("/");
       if (urlParts.length > 0) {
@@ -248,7 +274,8 @@ export async function POST(request: Request) {
         if (lastPart && !lastPart.match(/^\d+$/)) {
           name = decodeURIComponent(lastPart)
             .replace(/-/g, " ")
-            .replace(/\s+i\.\d+\.\d+/i, "") // Remove product ID
+            .replace(/\s+i\.\d+\.\d+/i, "")
+            .replace(/\?.*$/i, "")
             .trim();
           debug.extractedData.nameFromUrl = name;
         }
@@ -261,15 +288,8 @@ export async function POST(request: Request) {
       debug.extractedData.nameFallback = true;
     }
 
-    // Limit description
-    if (description && description.length > 500) {
-      description = description.substring(0, 497) + "...";
-    }
-
-    console.log("===== SHOPEE IMPORT DEBUG =====");
-    console.log(JSON.stringify(debug, null, 2));
-
-    // Create the gift item
+    console.log("Final extracted data:", { name, price, hasImage: !!imageUrl });
+    console.log("Debug info:", JSON.stringify(debug, null, 2));
     const { data: item, error: insertError } = await supabase
       .from("gift_items")
       .insert({
