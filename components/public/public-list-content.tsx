@@ -90,7 +90,7 @@ export function PublicListContent({ list, items, ownerName }: PublicListContentP
           </h1>
           
           <p className="text-lg text-muted-foreground mb-2 animate-fade-in-up stagger-2">
-            Lista de presentes de <span className="text-primary font-medium">{ownerName}</span>
+            Lista de presentes
           </p>
           
           {list.description && (
