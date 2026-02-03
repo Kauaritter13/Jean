@@ -144,7 +144,7 @@ export function PublicListContent({ list, items, ownerName }: PublicListContentP
               <div>
                 <h3 className="text-2xl font-serif font-semibold mb-2">Lista vazia</h3>
                 <p className="text-muted-foreground">
-                  O namoro ainda nao adicionou itens a esta lista.
+                  Ainda não há itens nesta lista.
                 </p>
               </div>
             </CardContent>
@@ -453,7 +453,7 @@ function PublicItemCard({ item, delay, onPurchaseChange }: PublicItemCardProps) 
             <DialogHeader>
               <DialogTitle>Marcar como comprado</DialogTitle>
               <DialogDescription>
-                Você vai presentear o namoro com "{item.name}". 
+                Você vai presentear com "{item.name}". 
                 Informe seu nome e CPF para que eles saibam quem presenteou!
               </DialogDescription>
             </DialogHeader>

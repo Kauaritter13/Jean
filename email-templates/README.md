@@ -189,7 +189,7 @@ https://www.seudominio.com/**
 
 Os templates incluem:
 
-- 💝 Design com cores azul e amarelo (tema do namoro)
+- 💝 Design com cores azul e amarelo (tema chá de casa nova)
 - 📱 Responsivo (funciona em celular)
 - 💌 Visual bonito e profissional
 - 🎨 Ícones e elementos decorativos
