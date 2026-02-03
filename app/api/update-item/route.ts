@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function PATCH(request: Request) {
   try {
-    const { itemId, name, price, imageUrl } = await request.json();
+    const { itemId, name, price, imageUrl, description } = await request.json();
 
     if (!itemId) {
       return NextResponse.json(
@@ -62,6 +62,7 @@ export async function PATCH(request: Request) {
         name: name || undefined,
         price: price ? parseFloat(price) : undefined,
         image_url: imageUrl || undefined,
+        description: description || undefined,
         updated_at: new Date().toISOString(),
       })
       .eq("id", itemId)

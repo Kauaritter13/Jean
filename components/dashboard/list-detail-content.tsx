@@ -574,6 +574,7 @@ function ItemCard({ item, isOwner, isDeleting, onDelete, onTogglePurchased, dela
   const [editName, setEditName] = useState(item.name)
   const [editPrice, setEditPrice] = useState(item.price?.toString() || '')
   const [editImageUrl, setEditImageUrl] = useState(item.image_url || '')
+  const [editDescription, setEditDescription] = useState(item.description || '')
   const [isSaving, setIsSaving] = useState(false)
 
   const handleSaveEdit = async () => {
@@ -592,6 +593,7 @@ function ItemCard({ item, isOwner, isDeleting, onDelete, onTogglePurchased, dela
           name: editName.trim(),
           price: editPrice ? parseFloat(editPrice) : null,
           imageUrl: editImageUrl.trim() || null,
+          description: editDescription.trim() || null,
         }),
       })
 
@@ -754,6 +756,16 @@ function ItemCard({ item, isOwner, isDeleting, onDelete, onTogglePurchased, dela
                   value={editImageUrl}
                   onChange={(e) => setEditImageUrl(e.target.value)}
                   placeholder="https://..."
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-description">Descrição</Label>
+                <Textarea
+                  id="edit-description"
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  placeholder="Descrição opcional do produto"
+                  rows={3}
                 />
               </div>
             </div>
