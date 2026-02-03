@@ -6,6 +6,7 @@ export function MonsterEasterEgg() {
   const [showVideo, setShowVideo] = useState(false)
   const keyBufferRef = useRef<string[]>([])
   const videoRef = useRef<HTMLVideoElement>(null)
+  const audioRef = useRef<HTMLAudioElement>(null)
 
   useEffect(() => {
     const handleKeyPress = (event: KeyboardEvent) => {
@@ -37,12 +38,17 @@ export function MonsterEasterEgg() {
   }, [])
 
   useEffect(() => {
-    if (showVideo && videoRef.current) {
+    if (showVideo && videoRef.current && audioRef.current) {
       videoRef.current.play()
+      audioRef.current.play()
     }
   }, [showVideo])
 
   const handleVideoEnd = () => {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+    }
     setShowVideo(false)
   }
 
@@ -59,7 +65,13 @@ export function MonsterEasterEgg() {
         className="w-full h-full object-contain"
         onEnded={handleVideoEnd}
         autoPlay
+        muted
         controls
+      />
+      <audio
+        ref={audioRef}
+        src="/sound/monster.mp3"
+        preload="auto"
       />
     </div>
   )
