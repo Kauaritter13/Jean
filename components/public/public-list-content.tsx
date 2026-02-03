@@ -401,7 +401,7 @@ function PublicItemCard({ item, delay, onPurchaseChange }: PublicItemCardProps) 
               R$ {(item.price * item.quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </span>
           ) : (
-            <span className="text-sm text-muted-foreground">Preco nao informado</span>
+            <span className="text-sm text-muted-foreground"></span>
           )}
           {item.quantity > 1 && (
             <Badge variant="outline">Qtd: {item.quantity}</Badge>
