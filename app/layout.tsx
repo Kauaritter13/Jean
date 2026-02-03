@@ -2,6 +2,7 @@ import React from "react"
 import type { Metadata } from 'next'
 import { Quicksand, Playfair_Display } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { MonsterEasterEgg } from '@/components/monster-easter-egg'
 import './globals.css'
 
 const quicksand = Quicksand({ subsets: ["latin"], variable: '--font-quicksand' });
@@ -39,6 +40,7 @@ export default function RootLayout({
     <html lang="pt-BR">
       <body className={`${quicksand.variable} ${playfair.variable} font-sans antialiased`}>
         {children}
+        <MonsterEasterEgg />
         <Analytics />
       </body>
     </html>
