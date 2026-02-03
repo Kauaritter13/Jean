@@ -515,6 +515,47 @@ export function ListDetailContent({ list, items: initialItems, isOwner }: ListDe
       <div className="fixed bottom-8 right-8 pointer-events-none">
         <Sparkles className="w-10 h-10 text-accent/30 animate-float" />
       </div>
+
+      {/* Dialog para editar nome da lista */}
+      <Dialog open={isEditingListName} onOpenChange={setIsEditingListName}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar nome da lista</DialogTitle>
+            <DialogDescription>
+              Altere o nome da sua lista de presentes
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="list-name">Nome da lista</Label>
+              <Input
+                id="list-name"
+                value={editedListName}
+                onChange={(e) => setEditedListName(e.target.value)}
+                placeholder="Digite o nome da lista"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsEditingListName(false)
+                setEditedListName(list.name)
+              }}
+              disabled={isSavingListName}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleSaveListName}
+              disabled={isSavingListName}
+            >
+              {isSavingListName ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -735,49 +776,5 @@ function ItemCard({ item, isOwner, isDeleting, onDelete, onTogglePurchased, dela
         </Dialog>
       </CardFooter>
     </Card>
-  )
-}
-
-      {/* Dialog para editar nome da lista */}
-      <Dialog open={isEditingListName} onOpenChange={setIsEditingListName}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Editar nome da lista</DialogTitle>
-            <DialogDescription>
-              Altere o nome da sua lista de presentes
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="list-name">Nome da lista</Label>
-              <Input
-                id="list-name"
-                value={editedListName}
-                onChange={(e) => setEditedListName(e.target.value)}
-                placeholder="Digite o nome da lista"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsEditingListName(false)
-                setEditedListName(list.name)
-              }}
-              disabled={isSavingListName}
-            >
-              Cancelar
-            </Button>
-            <Button 
-              onClick={handleSaveListName}
-              disabled={isSavingListName}
-            >
-              {isSavingListName ? 'Salvando...' : 'Salvar'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
   )
 }
