@@ -37,7 +37,8 @@ import {
   Share2,
   Copy,
   Star,
-  Edit
+  Edit,
+  Pencil
 } from 'lucide-react'
 
 interface ListDetailContentProps {
@@ -55,6 +56,9 @@ export function ListDetailContent({ list, items: initialItems, isOwner }: ListDe
   const [isImporting, setIsImporting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [isEditingListName, setIsEditingListName] = useState(false)
+  const [editedListName, setEditedListName] = useState(list.name)
+  const [isSavingListName, setIsSavingListName] = useState(false)
 
   async function handleAddItem(formData: FormData) {
     setIsAddingItem(true)
@@ -124,6 +128,38 @@ export function ListDetailContent({ list, items: initialItems, isOwner }: ListDe
     setTimeout(() => setCopied(false), 2000)
   }
 
+  async function handleSaveListName() {
+    if (!editedListName.trim()) {
+      alert('Nome da lista é obrigatório')
+      return
+    }
+
+    setIsSavingListName(true)
+    try {
+      const response = await fetch('/api/update-list', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          listId: list.id,
+          name: editedListName.trim(),
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao atualizar nome da lista')
+      }
+
+      setIsEditingListName(false)
+      window.location.reload()
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Erro ao atualizar lista')
+    } finally {
+      setIsSavingListName(false)
+    }
+  }
+
   const pendingItems = items.filter(i => !i.is_purchased)
   const purchasedItems = items.filter(i => i.is_purchased)
   const totalValue = items.reduce((acc, item) => acc + (item.price || 0) * item.quantity, 0)
@@ -149,7 +185,19 @@ export function ListDetailContent({ list, items: initialItems, isOwner }: ListDe
               </Link>
             </Button>
             <div>
-              <h1 className="font-serif font-semibold text-lg">{list.name}</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="font-serif font-semibold text-lg">{list.name}</h1>
+                {isOwner && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => setIsEditingListName(true)}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground">
                 {items.length} {items.length === 1 ? 'item' : 'itens'}
               </p>
@@ -687,5 +735,49 @@ function ItemCard({ item, isOwner, isDeleting, onDelete, onTogglePurchased, dela
         </Dialog>
       </CardFooter>
     </Card>
+  )
+}
+
+      {/* Dialog para editar nome da lista */}
+      <Dialog open={isEditingListName} onOpenChange={setIsEditingListName}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar nome da lista</DialogTitle>
+            <DialogDescription>
+              Altere o nome da sua lista de presentes
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="list-name">Nome da lista</Label>
+              <Input
+                id="list-name"
+                value={editedListName}
+                onChange={(e) => setEditedListName(e.target.value)}
+                placeholder="Digite o nome da lista"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsEditingListName(false)
+                setEditedListName(list.name)
+              }}
+              disabled={isSavingListName}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleSaveListName}
+              disabled={isSavingListName}
+            >
+              {isSavingListName ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   )
 }

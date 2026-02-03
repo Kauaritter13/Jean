@@ -40,7 +40,7 @@ export default async function PublicListPage({
     <PublicListContent 
       list={list} 
       items={items || []} 
-      ownerName={profile?.display_name || 'Casal'} 
+      ownerName={profile?.display_name || 'Namoro'} 
     />
   )
 }
